@@ -5,9 +5,10 @@
 #'
 #' @param start Start date (Date or character in YYYY-MM-DD format).
 #' @param end End date (Date or character in YYYY-MM-DD format).
-#' @param frequency Defines the frequency of the return series ("daily", "weekly", "monthly")
-#' @param type Defines if simple or log returns should be returned
-#' @param cum Activates cumulative returns
+#' @param frequency Defines the frequency of the return series ("daily", "weekly", "monthly").
+#' @param type Defines if simple or log returns should be returned.
+#' @param cum Activates cumulative returns.
+#' @param label_month_end Activate that instead of the last available trading day, the end-of-month date is returned.
 #'
 #' @return A data frame with columns: \code{date} and \code{weighted_return}.
 #' @examples
@@ -18,12 +19,13 @@
 #'     end = Sys.Date(),
 #'     frequency = "weekly",
 #'     type = "simple",
-#'     cum = TRUE
+#'     cum = TRUE,
+#'     label_month_end = FALSE
 #'   )
 #' }
 #' @importFrom quantmod Ad getSymbols
 #' @importFrom xts to.period
-#' @importFrom zoo index
+#' @importFrom zoo index as.yearmon
 #' @export
 ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly"), type = c("simple", "log"), cum = FALSE) {
 
@@ -66,9 +68,16 @@ ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly")
     if(cum == TRUE) weighted_return = cumprod(1+ as.numeric(weighted_returns)) - 1
     else weighted_return = as.numeric(weighted_returns)
   }
+  # Adjust dates if necessary
+  out_dates <- index(prices)
+
+  if(frequency == "monthly" && isTRUE(label_month_end)){
+    out_dates <- as.Date(as.yearmon(out_dates), frac = 1)
+  }
+
   # Return as data.frame
   data.frame(
-    date = index(prices),
+    date = out_dates,
     weighted_return = weighted_return
   )
 }

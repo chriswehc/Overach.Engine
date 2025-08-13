@@ -17,11 +17,13 @@ ZZ_benchmark(
 
 \item{end}{End date (Date or character in YYYY-MM-DD format).}
 
-\item{frequency}{Defines the frequency of the return series ("daily", "weekly", "monthly")}
+\item{frequency}{Defines the frequency of the return series ("daily", "weekly", "monthly").}
 
-\item{type}{Defines if simple or log returns should be returned}
+\item{type}{Defines if simple or log returns should be returned.}
 
-\item{cum}{Activates cumulative returns}
+\item{cum}{Activates cumulative returns.}
+
+\item{label_month_end}{Activate that instead of the last available trading day, the end-of-month date is returned.}
 }
 \value{
 A data frame with columns: \code{date} and \code{weighted_return}.
@@ -38,7 +40,8 @@ a predefined 60/40 weighting to calculate a weighted portfolio return.
     end = Sys.Date(),
     frequency = "weekly",
     type = "simple",
-    cum = TRUE
+    cum = TRUE,
+    label_month_end = FALSE
   )
 }
 }
