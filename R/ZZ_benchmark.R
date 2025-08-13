@@ -27,7 +27,7 @@
 #' @importFrom xts to.period
 #' @importFrom zoo index as.yearmon
 #' @export
-ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly"), type = c("simple", "log"), cum = FALSE) {
+ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly"), type = c("simple", "log"), cum = FALSE, label_month_end = FALSE) {
 
   frequency <- match.arg(frequency)
   tickers <- c("URTH", "EEM")
@@ -72,7 +72,7 @@ ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly")
   out_dates <- index(prices)
 
   if(frequency == "monthly" && isTRUE(label_month_end)){
-    out_dates <- as.Date(as.yearmon(out_dates), frac = 1)
+    out_dates <-  zoo::as.Date.yearmon(as.yearmon(out_dates), frac = 1)
   }
 
   # Return as data.frame

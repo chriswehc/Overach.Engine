@@ -9,7 +9,8 @@ ZZ_benchmark(
   end,
   frequency = c("daily", "weekly", "monthly"),
   type = c("simple", "log"),
-  cum = FALSE
+  cum = FALSE,
+  label_month_end = FALSE
 )
 }
 \arguments{
