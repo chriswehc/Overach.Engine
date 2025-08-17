@@ -278,6 +278,6 @@ roll_perf_stats <- function(df_merged,
 
   return(list(
     rolling = res_df,
-    summary = stats_df,
+    summary = stats_df
   ))
 }
