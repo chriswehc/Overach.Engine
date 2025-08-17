@@ -17,5 +17,10 @@ LazyData: true
 Imports: 
     quantmod,
     xts,
-    zoo
+    zoo,
+    dplyr,
+    stringr,
+    lubridate,
+    stats,
+    frenchdata
 RoxygenNote: 7.3.2

@@ -78,7 +78,7 @@ ZZ_benchmark <- function(start, end, frequency = c("daily", "weekly", "monthly")
   # Return as data.frame
   data.frame(
     date = out_dates,
-    weighted_return = weighted_return
+    ZZ_benchmark = weighted_return
   )
 }
 
