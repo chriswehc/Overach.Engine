@@ -92,7 +92,7 @@
 #'
 #' @importFrom quantmod Ad getSymbols
 #' @importFrom xts to.period endpoints
-#' @importFrom zoo index na.fill as.zoo.data.frame
+#' @importFrom zoo index na.fill
 #' @importFrom ggplot2 ggplot aes geom_line labs theme_minimal theme
 #' @importFrom tidyr pivot_longer
 #' @importFrom dplyr rename arrange desc

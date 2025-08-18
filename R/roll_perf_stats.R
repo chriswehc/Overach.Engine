@@ -200,9 +200,10 @@ roll_perf_stats <- function(df_merged,
       ir      <- if (te > 0) (mean(ex - bench, na.rm=TRUE) * trading_days) / te else NA_real_
 
       # 5. Sortino Ratio = annual excess / annual downside dev
-      dwn_ret  <- ex[ex < mar]
-      dd_dn    <- sqrt(mean((dwn_ret - mar)^2, na.rm=TRUE)) * sqrt(trading_days)
-      sortino  <- if (dd_dn > 0) ann_ex / dd_dn else NA_real_
+      downside   <- pmin(ex - mar, 0)                 # non-positive deviations
+      dd_dn      <- sqrt(mean(downside^2, na.rm=TRUE)) * sqrt(trading_days)
+
+      sortino    <- if (is.finite(dd_dn) && dd_dn > 0) ann_ex / dd_dn else NA_real_
 
       # 6. Bootstrap VaR
       boot_samp        <- sample(ex, size = n_boot, replace = TRUE)
