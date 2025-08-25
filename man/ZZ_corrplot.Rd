@@ -7,7 +7,9 @@
 ZZ_corrplot(
   df = NULL,
   frequency = c("daily", "weekly", "monthly"),
-  type = c("simple", "log")
+  type = c("simple", "log"),
+  fuzzy = TRUE,
+  max_days = 5
 )
 }
 \arguments{
@@ -16,6 +18,10 @@ ZZ_corrplot(
 \item{frequency}{Defines the frequency of the return series ("daily", "weekly", "monthly").}
 
 \item{type}{Defines if simple or log returns should be returned.}
+
+\item{fuzzy}{logical; if TRUE, nearest-date join is used for `df`.}
+
+\item{max_days}{integer; maximum day distance for nearest-date join.}
 }
 \value{
 A corrplot with correlation matrix visualised.

@@ -7,6 +7,9 @@
 #' @param df Dataframe with the return series including date column (Optional).
 #' @param frequency Defines the frequency of the return series ("daily", "weekly", "monthly").
 #' @param type Defines if simple or log returns should be returned.
+#' @param fuzzy logical; if TRUE, nearest-date join is used for `df`.
+#' @param max_days integer; maximum day distance for nearest-date join.
+#'
 #'
 #' @return A corrplot with correlation matrix visualised.
 #' @examples
@@ -22,90 +25,107 @@
 #' @importFrom xts to.period
 #' @importFrom zoo index coredata
 #' @importFrom corrplot corrplot
+#' @import dplyr
+#' @import fuzzyjoin
 #' @export
 
-ZZ_corrplot <- function(df = NULL , frequency = c("daily", "weekly", "monthly"), type = c("simple", "log")){
+ZZ_corrplot <- function(df = NULL,
+                        frequency = c("daily", "weekly", "monthly"),
+                        type = c("simple", "log"),
+                        fuzzy = TRUE,
+                        max_days = 5) {
 
-  # Inputs
   frequency <- match.arg(frequency)
-  type <- match.arg(type)
+  type      <- match.arg(type)
   start <- as.Date("2020-01-01")
-  end <- Sys.Date()
-
-  # ZZ Portfolio Investments (needs constant updates/ later connect to Bloomberg)
+  end   <- Sys.Date()
 
   tickers <- c(
-    "SWICHA.SW",    # MSCI Switzerland ETF CHF
-    "IXG",          # iShares Global Financials ETF
-    "IXP",          # iShares Global Comm Services ETF
-    "LKOR.DE",      # Amundi MSCI Korea UCITS ETF Acc
-    "IGLE.AS",      # iShares Global Govt Bond UCITS ETF EUR Hedged
-    "IEML.L",       # iShares J.P. Morgan EM Local Govt Bond UCITS ETF USD
-    "IEGA.AS",      # iShares Core € Govt Bond UCITS ETF EUR
-    "ETFBW20TR.WA", # Beta ETF WIG20TR
-    "IEMD.L",       # iShares Edge MSCI Europe Momentum Factor UCITS ETF EUR
-    "BDX.WA"        # Budimex S.A.
+    "SWICHA.SW","IXG","IXP","LKOR.DE","IGLE.AS",
+    "IEML.L","IEGA.AS","ETFBW20TR.WA","IEMD.L","BDX.WA"
   )
 
-  # Download Adjusted Close prices
+  # --- Download Adjusted Close prices ---
   options(getSymbols.warning4.0 = FALSE)
-
   close_list <- lapply(tickers, function(tkr) {
-    Ad(getSymbols(tkr, from = start, to = end, src = "yahoo",
-                  auto.assign = FALSE))
+    quantmod::Ad(quantmod::getSymbols(tkr, from = start, to = end, src = "yahoo", auto.assign = FALSE))
   })
   close_prices <- do.call(merge, close_list)
   colnames(close_prices) <- tickers
 
   if (frequency == "weekly") {
-    prices <- to.period(close_prices, period = "weeks",
-                        indexAt = "endof", drop.time = TRUE, OHLC = FALSE)
-    colnames(prices) <- tickers
+    prices <- xts::to.period(close_prices, period = "weeks",  indexAt = "endof", drop.time = TRUE, OHLC = FALSE)
   } else if (frequency == "monthly") {
-    prices <- to.period(close_prices, period = "months",
-                        indexAt = "endof", drop.time = TRUE, OHLC = FALSE)
-    colnames(prices) <- tickers
+    prices <- xts::to.period(close_prices, period = "months", indexAt = "endof", drop.time = TRUE, OHLC = FALSE)
   } else {
     prices <- close_prices
   }
-  # Calculate returns
+  colnames(prices) <- tickers
 
+  prices_df <- data.frame(date = zoo::index(prices), zoo::coredata(prices), check.names = FALSE)
+
+  # Optional: your NA-cleaner
+  prices_df <- ZZ_remove_na(prices_df, interpolate = TRUE)
+
+  # --- Returns ---
   if (type == "log") {
-    rets_xts <- diff(log(prices))
+    portfolio_df <- dplyr::mutate(prices_df, dplyr::across(-date, ~ log(.x) - dplyr::lag(log(.x))))
   } else {
-    rets_xts <- prices / lag(prices) - 1
+    portfolio_df <- dplyr::mutate(prices_df, dplyr::across(-date, ~ .x / dplyr::lag(.x) - 1))
   }
+  # drop first NA row (from lag)
+  portfolio_df <- portfolio_df[stats::complete.cases(portfolio_df$date) & !is.na(portfolio_df[[2]]), , drop = FALSE]
+  # ensure Date type
+  portfolio_df$date <- as.Date(portfolio_df$date)
 
-  rets_xts <- rets_xts[complete.cases(rets_xts), ]
-
-  # Build a data.frame with date column
-
-  portfolio_df <- data.frame(date = index(rets_xts), coredata(rets_xts), check.names = FALSE)
-
+  # --- Optional merge with external df (exact or fuzzy by nearest date) ---
   if (!is.null(df)) {
     if (!("date" %in% names(df))) stop("`df` must contain a 'date' column.")
-    if (!inherits(df$date, "Date")) df$date <- as.Date(df$date)
-    # Keep only numeric cols (besides date)
+    df$date <- as.Date(df$date)
+
+    # keep only numeric cols + date
     keep <- vapply(df, is.numeric, logical(1)); keep["date"] <- TRUE
     df <- df[, keep, drop = FALSE]
-    # Avoid duplicate names
-    dup <- intersect(names(df), names(portfolio_df))
-    dup <- setdiff(dup, "date")
+
+    # avoid duplicate names (except date)
+    dup <- setdiff(intersect(names(df), names(portfolio_df)), "date")
     if (length(dup)) names(df)[match(dup, names(df))] <- paste0(dup, "_df")
-    merged_df <- merge(portfolio_df, df, by = "date", all = FALSE)
+
+    if (!fuzzy) {
+      merged_df <- dplyr::inner_join(portfolio_df, df, by = "date")
+    } else {
+      merged_df <- fuzzyjoin::difference_left_join(
+        portfolio_df, df,
+        by = "date",
+        max_dist = as.difftime(max_days, units = "days"),
+        distance_col = "date_diff"
+      ) |>
+        dplyr::mutate(
+          date_diff = as.numeric(date_diff, units = "days"),
+          date_diff = dplyr::if_else(is.na(date_diff), Inf, date_diff)
+        ) |>
+        dplyr::group_by(date.x) |>
+        dplyr::slice_min(date_diff, with_ties = FALSE) |>
+        dplyr::ungroup() |>
+        dplyr::rename(date = date.x) |>
+        dplyr::select(-date.y, -date_diff)
+    }
   } else {
     merged_df <- portfolio_df
   }
 
-  # Create Correlation Matrix
-
+  # --- Correlation matrix ---
   num_cols <- vapply(merged_df, is.numeric, logical(1))
   num_mat  <- as.matrix(merged_df[, num_cols, drop = FALSE])
-  cor_mat <- cor(num_mat, use = "pairwise.complete.obs")
 
+  if (ncol(num_mat) < 2L) stop("Not enough numeric columns to compute correlations.")
+  # drop constant columns to avoid NA correlations
+  sd_vec <- apply(num_mat, 2, stats::sd, na.rm = TRUE)
+  num_mat <- num_mat[, sd_vec > 0, drop = FALSE]
 
-  # Create Corrplot
+  cor_mat <- stats::cor(num_mat, use = "pairwise.complete.obs")
 
+  # --- Corrplot ---
   corrplot::corrplot(
     cor_mat,
     method = "color",
@@ -114,19 +134,16 @@ ZZ_corrplot <- function(df = NULL , frequency = c("daily", "weekly", "monthly"),
     diag   = FALSE,
     tl.col = "black",
     tl.srt = 45,
-    tl.cex = 0.7,              # ↓ label font size
-    cl.cex = 0.7,              # ↓ legend font size (optional)
-    addCoef.col   = "black",   # print numbers
-    number.cex    = 0.6,       # number size
-    number.digits = 2,         # decimals
-    col = colorRampPalette(c("blue", "white", "red"))(200)
+    tl.cex = 0.7,
+    cl.cex = 0.7,
+    addCoef.col   = "black",
+    number.cex    = 0.6,
+    number.digits = 2,
+    col = grDevices::colorRampPalette(c("blue", "white", "red"))(200)
   )
 
-  # It will print the correlation plot and save the correlation matrix
   invisible(cor_mat)
-
 }
-
 
 
 
